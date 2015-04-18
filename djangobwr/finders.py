@@ -1,8 +1,6 @@
 from django.contrib.staticfiles.finders import AppDirectoriesFinder
-from django.contrib.staticfiles.storage import AppStaticStorage
 
 class AppDirectoriesFinderBower(AppDirectoriesFinder):
-    storage_class = AppStaticStorage
 
     def list(self, ignore_patterns):
         """
