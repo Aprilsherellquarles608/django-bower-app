@@ -5,7 +5,7 @@ import tempfile
 import shutil
 import hashlib
 import glob
-from subprocess import call
+from subprocess import call, check_output, CalledProcessError
 from optparse import make_option
 
 from django.core.management.base import BaseCommand
@@ -42,9 +42,23 @@ class Command(BaseCommand):
         :param bower_json_path: bower.json file to install
         :param dest_dir: where the compiled result will arrive
         """
+
+        # Verify that we are able to run bower, in order to give a good error message in the
+        # case that it's not installed.  Do this separately from the 'bower install' call, in
+        # order not to warn about a missing bower in the case of installation-related errors.
+        try:
+            bower_version = check_output(['bower', '--version'])
+        except OSError as e:
+            print("Trying to run bower failed -- is it installed?  The error was: %s" % e)
+            exit(1)
+        except CalledProcessError as e:
+            print("Checking the bower version failed: %s" % e)
+            exit(2)
+        print("Bower %s" % bower_version)
+
         # bower args
         args = ['bower', 'install', bower_json_path,
-                '--config.cwd={}'.format(dest_dir), '-p']
+                '--verbose', '--config.cwd={}'.format(dest_dir), '-p']
 
         # run bower command
         call(args)
@@ -80,7 +94,7 @@ class Command(BaseCommand):
         component_root = getattr(settings, 'COMPONENT_ROOT', os.path.join(settings.STATIC_ROOT, "components"))
 
         for directory in os.listdir(bower_dir):
-            print("Copying files from %s" % (directory, ))
+            print("Component: %s" % (directory, ))
 
             src_root = os.path.join(bower_dir, directory)
 
@@ -130,7 +144,7 @@ class Command(BaseCommand):
                             if not os.path.exists(dst_root):
                                 os.makedirs(dst_root)
 
-                            print('{0} > {1}'.format(src_path, dst_root))
+                            print('  {0} > {1}{2}'.format(src_path, dst_root, os.sep))
                             shutil.copy(src_path, dst_root)
                     break
 
