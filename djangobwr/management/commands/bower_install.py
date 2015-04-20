@@ -5,26 +5,39 @@ import tempfile
 import shutil
 import hashlib
 import glob
+import textwrap
 from subprocess import call, check_output, CalledProcessError
 from optparse import make_option
 
 from django.core.management.base import BaseCommand
 from django.conf import settings
-
-from djangobwr.finders import AppDirectoriesFinderBower
+from django.contrib.staticfiles import finders
 
 
 class Command(BaseCommand):
-    """Command goes through apps. If description files are in the app,
-    it will install it in a temporary folder:
+    """
+
+    This command goes through any static/ directories of installed apps,
+    and the directories listed in settings.STATICFILES_DIRS. If package
+    description files for bower, npm, or grunt are found in any of these
+    locations, it will use the appropriate package manager to install the
+    listed packages in a temporary folder, using these commands:
 
         - package.json: npm install
         - Gruntfile.js: grunt default
         - bower.json: bower install
+
+    It will then extract the distribution files to the location indicated in
+    settings.COMPONENT_ROOT.
     """
+    help = textwrap.dedent(__doc__).lstrip()
+    component_root = getattr(settings, 'COMPONENT_ROOT', os.path.join(settings.STATIC_ROOT, "components"))
     option_list = BaseCommand.option_list + (
         make_option('--with-version', dest='with_version', default=False, action='store_true',
             help='Create component directories with version numbers'),
+        make_option('--keep-packages', dest='keep_packages', default=False, action='store_true',
+            help='Keep the downloaded bower packages, instead of removing them after moving '
+                'distribution files to settings.COMPONENT_ROOT'),
     )
     bower_info = {}
 
@@ -90,8 +103,7 @@ class Command(BaseCommand):
         return self.bower_info[bower_json_path].get("version")
 
     def clean_components_to_static_dir(self, bower_dir):
-
-        component_root = getattr(settings, 'COMPONENT_ROOT', os.path.join(settings.STATIC_ROOT, "components"))
+        print("\nMoving component files to %s\n" % (self.component_root,))
 
         for directory in os.listdir(bower_dir):
             print("Component: %s" % (directory, ))
@@ -104,7 +116,7 @@ class Command(BaseCommand):
                     main_list = self.get_bower_main_list(bower_json_path)
                     version   = self.get_bower_version(bower_json_path)
 
-                    dst_root = os.path.join(component_root, directory)
+                    dst_root = os.path.join(self.component_root, directory)
                     if self.with_version:
                         assert not dst_root.endswith(os.sep)
                         dst_root += "-"+version
@@ -123,8 +135,10 @@ class Command(BaseCommand):
                                 print("Could not find source path: %s" % (src_path, ))
 
                             # Build the destination path
-                            base = os.path.basename(src_path)
-                            dst_path = os.path.join(dst_root, base)
+                            src_part = src_path[len(src_root+'/'):]
+                            if src_part.startswith('dist/'):
+                                src_part = src_part[len('dist/'):]
+                            dst_path = os.path.join(dst_root, src_part)
 
                             # Normalize the paths, for good looks
                             src_path = os.path.abspath(src_path)
@@ -141,54 +155,54 @@ class Command(BaseCommand):
                                     continue
 
                             # Make sure dest dir exists.
-                            if not os.path.exists(dst_root):
-                                os.makedirs(dst_root)
+                            dst_dir = os.path.dirname(dst_path)
+                            if not os.path.exists(dst_dir):
+                                os.makedirs(dst_dir)
 
-                            print('  {0} > {1}{2}'.format(src_path, dst_root, os.sep))
-                            shutil.copy(src_path, dst_root)
+                            print('  {0} > {1}'.format(src_path, dst_path))
+                            
+                            shutil.copy(src_path, dst_path)
                     break
 
     def handle(self, *args, **options):
 
         self.with_version = options.get("with_version")
-
-        npm_list = []
-        grunt_list = []
-        bower_list = []
+        self.keep_packages = options.get("keep_packages")
 
         temp_dir = getattr(settings, 'BWR_APP_TMP_FOLDER', '.tmp')
         temp_dir = os.path.abspath(temp_dir)
 
-        if not os.path.exists(temp_dir):
+        if os.path.exists(temp_dir):
+            if not self.keep_packages:
+                sys.stderr.write(
+                    "\nWARNING:\n\n"
+                    "  The temporary package installation directory exists, but the --keep-packages\n"
+                    "  option has not been given.  In order to not delete anything which should be\n"
+                    "  kept, %s will not be removed.\n\n"
+                    "  Please remove it manually, or use the --keep-packages option to avoid this\n"
+                    "  message.\n\n" % (temp_dir,))
+                self.keep_packages = True
+        else:
             os.makedirs(temp_dir)
 
-        for path, storage in AppDirectoriesFinderBower().list([]):
-
-            abs_path = unicode(os.path.join(storage.location, path))
-
-            if path == 'package.json':
-                npm_list.append(abs_path)
-            elif path == 'Gruntfile.js':
-                grunt_list.append(abs_path)
-            elif path == 'bower.json':
-                bower_list.append(abs_path)
-            else:
-                continue
-
-        for path in npm_list:
+        for path in finders.find('package.json', all=True):
             self.npm_install(path)
 
-        for path in grunt_list:
+        for path in finders.find('Gruntfile.json', all=True):
             self.grunt_default(path)
 
-        for path in bower_list:
+        for path in finders.find('bower.json', all=True):
             self.bower_install(path, temp_dir)
 
         bower_dir = os.path.join(temp_dir, 'bower_components')
 
         # nothing to clean
         if not os.path.exists(bower_dir):
-            print('No components seems to have been installed by bower, exiting.')
+            print('No components seems to have been found by bower, exiting.')
             sys.exit(0)
 
         self.clean_components_to_static_dir(bower_dir)
+
+        if not self.keep_packages:
+            shutil.rmtree(temp_dir)
+
