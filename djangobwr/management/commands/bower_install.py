@@ -9,6 +9,8 @@ import textwrap
 from subprocess import call, check_output, CalledProcessError
 from optparse import make_option
 
+import debug                            # pyflakes:ignore
+
 from django.core.management.base import BaseCommand
 from django.conf import settings
 from django.contrib.staticfiles import finders
@@ -60,14 +62,16 @@ class Command(BaseCommand):
         # case that it's not installed.  Do this separately from the 'bower install' call, in
         # order not to warn about a missing bower in the case of installation-related errors.
         try:
-            bower_version = check_output(['bower', '--version'])
+            bower_version = check_output(['bower', '--version']).strip()
         except OSError as e:
             print("Trying to run bower failed -- is it installed?  The error was: %s" % e)
             exit(1)
         except CalledProcessError as e:
             print("Checking the bower version failed: %s" % e)
             exit(2)
-        print("Bower %s" % bower_version)
+
+        print("\nBower %s" % bower_version)
+        print("Installing from %s\n" % bower_json_path)
 
         # bower args
         args = ['bower', 'install', bower_json_path,
