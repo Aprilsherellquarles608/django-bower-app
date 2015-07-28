@@ -12,9 +12,12 @@ from optparse import make_option
 import debug                            # pyflakes:ignore
 
 from django.core.management.base import BaseCommand
+from django.core.files.storage import FileSystemStorage
 from django.conf import settings
-from django.contrib.staticfiles import finders
+from django.contrib.staticfiles.finders import BaseStorageFinder, AppDirectoriesFinder
 
+class BaseDirectoryFinder(BaseStorageFinder):
+    storage = FileSystemStorage(location=settings.BASE_DIR)
 
 class Command(BaseCommand):
     """
@@ -176,6 +179,15 @@ class Command(BaseCommand):
         temp_dir = getattr(settings, 'BWR_APP_TMP_FOLDER', '.tmp')
         temp_dir = os.path.abspath(temp_dir)
 
+        # finders
+        basefinder = BaseDirectoryFinder()
+        appfinder = AppDirectoriesFinder()
+        # Assume bower.json files are to be found in each app directory,
+        # rather than in the app's static/ subdirectory:
+        appfinder.source_dir = '.'
+
+        finders = (basefinder, appfinder, )
+
         if os.path.exists(temp_dir):
             if not self.keep_packages:
                 sys.stderr.write(
@@ -189,14 +201,17 @@ class Command(BaseCommand):
         else:
             os.makedirs(temp_dir)
 
-        for path in finders.find('package.json', all=True):
-            self.npm_install(path)
+        for finder in finders:
+            for path in finder.find('package.json', all=True):
+                self.npm_install(path)
 
-        for path in finders.find('Gruntfile.json', all=True):
-            self.grunt_default(path)
+        for finder in finders:
+            for path in finder.find('Gruntfile.json', all=True):
+                self.grunt_default(path)
 
-        for path in finders.find('bower.json', all=True):
-            self.bower_install(path, temp_dir)
+        for finder in finders:
+            for path in finder.find('bower.json', all=True):
+                self.bower_install(path, temp_dir)
 
         bower_dir = os.path.join(temp_dir, 'bower_components')
 
