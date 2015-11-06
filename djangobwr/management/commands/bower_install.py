@@ -45,6 +45,7 @@ class Command(BaseCommand):
                 'distribution files to settings.COMPONENT_ROOT'),
     )
     bower_info = {}
+    overrides = {}
 
     def npm_install(self, pkg_json_path):
         os.chdir(os.path.dirname(pkg_json_path))
@@ -87,12 +88,18 @@ class Command(BaseCommand):
         if not bower_json_path in self.bower_info:
             self.bower_info[bower_json_path] = json.load(open(bower_json_path))
 
-    def get_bower_main_list(self, bower_json_path):
-        """Returns the bower.json main list or empty list.
+    def get_bower_main_list(self, bower_json_path, override):
+        """
+        Returns the bower.json main list or empty list.
+        Applies overrides from the site-wide bower.json.
         """
         self.get_bower_info(bower_json_path)
 
         main_list = self.bower_info[bower_json_path].get('main')
+        component = self.bower_info[bower_json_path].get('name')
+
+        if self.bower_info[override].get("overrides").get(component):
+            main_list = self.bower_info[override].get("overrides").get(component).get("main")
 
         if isinstance(main_list, list):
             return main_list
@@ -109,7 +116,7 @@ class Command(BaseCommand):
 
         return self.bower_info[bower_json_path].get("version")
 
-    def clean_components_to_static_dir(self, bower_dir):
+    def clean_components_to_static_dir(self, bower_dir, override):
         print("\nMoving component files to %s\n" % (self.component_root,))
 
         for directory in os.listdir(bower_dir):
@@ -120,7 +127,7 @@ class Command(BaseCommand):
             for bower_json in ['bower.json', '.bower.json']:
                 bower_json_path = os.path.join(src_root, bower_json)
                 if os.path.exists(bower_json_path):
-                    main_list = self.get_bower_main_list(bower_json_path)
+                    main_list = self.get_bower_main_list(bower_json_path, override)
                     version   = self.get_bower_version(bower_json_path)
 
                     dst_root = os.path.join(self.component_root, directory)
@@ -167,7 +174,6 @@ class Command(BaseCommand):
                                 os.makedirs(dst_dir)
 
                             print('  {0} > {1}'.format(src_path, dst_path))
-                            
                             shutil.copy(src_path, dst_path)
                     break
 
@@ -211,6 +217,7 @@ class Command(BaseCommand):
 
         for finder in finders:
             for path in finder.find('bower.json', all=True):
+                self.get_bower_info(path)
                 self.bower_install(path, temp_dir)
 
         bower_dir = os.path.join(temp_dir, 'bower_components')
@@ -220,7 +227,7 @@ class Command(BaseCommand):
             print('No components seems to have been found by bower, exiting.')
             sys.exit(0)
 
-        self.clean_components_to_static_dir(bower_dir)
+        self.clean_components_to_static_dir(bower_dir, path)
 
         if not self.keep_packages:
             shutil.rmtree(temp_dir)
