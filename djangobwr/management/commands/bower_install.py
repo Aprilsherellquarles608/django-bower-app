@@ -98,8 +98,11 @@ class Command(BaseCommand):
         main_list = self.bower_info[bower_json_path].get('main')
         component = self.bower_info[bower_json_path].get('name')
 
-        if self.bower_info[override].get("overrides").get(component):
-            main_list = self.bower_info[override].get("overrides").get(component).get("main")
+        if (override in self.bower_info
+            and "overrides" in self.bower_info[override] 
+            and component in self.bower_info[override].get("overrides")
+            and "main" in self.bower_info[override].get("overrides").get(component)):
+                main_list = self.bower_info[override].get("overrides").get(component).get("main")
 
         if isinstance(main_list, list):
             return main_list
