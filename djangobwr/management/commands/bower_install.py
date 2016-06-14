@@ -185,7 +185,7 @@ class Command(BaseCommand):
         self.with_version = options.get("with_version")
         self.keep_packages = options.get("keep_packages")
 
-        temp_dir = getattr(settings, 'BWR_APP_TMP_FOLDER', '.tmp')
+        temp_dir = getattr(settings, 'BWR_APP_TMP_FOLDER', 'tmp')
         temp_dir = os.path.abspath(temp_dir)
 
         # finders
