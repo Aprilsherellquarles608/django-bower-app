@@ -142,12 +142,6 @@ class Command(BaseCommand):
                         src_pattern = os.path.join(src_root, pattern)
                         # main_list elements can be fileglob patterns
                         for src_path in glob.glob(src_pattern):
-                            # See if we have a minified alternative
-                            path, ext = os.path.splitext(src_path)
-                            min_path = path+".min"+ext
-                            if os.path.exists(min_path):
-                                src_path = min_path
-
                             if not os.path.exists(src_path):
                                 print("Could not find source path: %s" % (src_path, ))
 
