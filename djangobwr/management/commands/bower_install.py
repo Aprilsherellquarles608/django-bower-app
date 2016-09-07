@@ -130,7 +130,7 @@ class Command(BaseCommand):
             for bower_json in ['bower.json', '.bower.json']:
                 bower_json_path = os.path.join(src_root, bower_json)
                 if os.path.exists(bower_json_path):
-                    main_list = self.get_bower_main_list(bower_json_path, override)
+                    main_list = self.get_bower_main_list(bower_json_path, override) + ['bower.json']
                     version   = self.get_bower_version(bower_json_path)
 
                     dst_root = os.path.join(self.component_root, directory)
