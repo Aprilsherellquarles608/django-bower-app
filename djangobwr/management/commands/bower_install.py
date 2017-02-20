@@ -37,13 +37,14 @@ class Command(BaseCommand):
     """
     help = textwrap.dedent(__doc__).lstrip()
     component_root = getattr(settings, 'COMPONENT_ROOT', os.path.join(settings.STATIC_ROOT, "components"))
-    option_list = BaseCommand.option_list + (
-        make_option('--with-version', dest='with_version', default=False, action='store_true',
-            help='Create component directories with version numbers'),
-        make_option('--keep-packages', dest='keep_packages', default=False, action='store_true',
+
+    def add_arguments(self, parser):
+        parser.add_argument('--with-version', dest='with_version', default=False, action='store_true',
+            help='Create component directories with version numbers')
+        parser.add_argument('--keep-packages', dest='keep_packages', default=False, action='store_true',
             help='Keep the downloaded bower packages, instead of removing them after moving '
-                'distribution files to settings.COMPONENT_ROOT'),
-    )
+                'distribution files to settings.COMPONENT_ROOT')
+
     bower_info = {}
     overrides = {}
 
